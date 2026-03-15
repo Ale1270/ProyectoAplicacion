@@ -79,5 +79,3 @@ def escribir_resultados(tab_s, r, vout, pout):
     if R_val >= 1e6: tab_s.campos["R"].setText(f"{R_val/1e6:.3f}"); tab_s.combos["R"].setCurrentText("MΩ")
     elif R_val >= 1e3: tab_s.campos["R"].setText(f"{R_val/1e3:.3f}"); tab_s.combos["R"].setCurrentText("kΩ")
     else: tab_s.campos["R"].setText(f"{R_val:.3f}"); tab_s.combos["R"].setCurrentText("Ω")
-
-def copiar_valores
