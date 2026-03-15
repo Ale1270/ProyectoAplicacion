@@ -184,7 +184,7 @@ class VentanaPrincipal(QMainWindow):
     # BOTÓN DE ACCIÓN
     # ==============================
     def _crear_boton_ejecutar(self):
-        boton = QPushButton("Ejecutar acción")
+        boton = QPushButton("Calcular filtros")
         boton.setFixedSize(160, 45)
         boton.setCursor(Qt.PointingHandCursor)
         boton.setStyleSheet("""

@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import QMessageBox
 import numpy as np
 from scipy.integrate import odeint
+import matplotlib.pyplot as plt
 
 # =========================================
 # ECUACIONES DEL CONVERTIDOR ĆUK - MODELO COMPLETO
@@ -14,11 +15,8 @@ def calcular_componentes(vin, vout, pout, fs, delta_i, delta_v):
     Iin = pout / vin
     Iout = pout / abs(vout)
 
-    # Inductores usando rizado ΔI
     L1 = (vin * D) / (fs * delta_i * Iin)
     L2 = (abs(vout) * (1 - D)) / (fs * delta_i * Iout)
-
-    # Capacitores usando rizado ΔV
     C1 = (Iout * D) / (fs * delta_v * (vin + abs(vout)))
     C2 = (Iout * (1 - D)) / (fs * delta_v * abs(vout))
 
@@ -29,26 +27,18 @@ def calcular_componentes(vin, vout, pout, fs, delta_i, delta_v):
 # =========================================
 def cuk_ode(x, t, vin, L1, L2, C1, C2, R, D):
     iL1, iL2, vC1, vout = x
-
     diL1_dt = (vin - vC1 * (1 - D)) / L1
     diL2_dt = (vC1 - vout * (1 - D)) / L2
     dvC1_dt = (iL1 - iL2) / C1
     dvout_dt = (iL2 - vout / R) / C2
-
     return [diL1_dt, diL2_dt, dvC1_dt, dvout_dt]
 
 def simular_cuk(vin, vout, pout, fs, delta_i, delta_v, t_max=0.01):
-    # Calcular componentes precisos
     comp = calcular_componentes(vin, vout, pout, fs, delta_i, delta_v)
     L1, L2, C1, C2, R, D = comp["L1"], comp["L2"], comp["C1"], comp["C2"], comp["R"], comp["Duty"]
 
-    # Condiciones iniciales (pueden ajustarse)
     x0 = [0, 0, 0, 0]
-
-    # Vector de tiempo
-    t = np.linspace(0, t_max, int(t_max*fs*50))
-
-    # Integrar ecuaciones diferenciales
+    t = np.linspace(0, t_max, int(t_max * fs * 50))
     sol = odeint(cuk_ode, x0, t, args=(vin, L1, L2, C1, C2, R, D))
     return t, sol, comp
 
@@ -57,17 +47,56 @@ def simular_cuk(vin, vout, pout, fs, delta_i, delta_v, t_max=0.01):
 # =========================================
 def ejecutar_accion(ventana, tabs):
     indice = tabs.currentIndex()
-    if indice == 0:
-        tab_d = tabs.widget(0)
-        tab_s = tabs.widget(1)
+    tab_d = tabs.widget(0)
+    tab_s = tabs.widget(1)
+
+    if indice == 0:  # Pestaña de diseño
         if not campos_completos(tab_d):
             QMessageBox.warning(ventana, "Campos incompletos", "Complete todos los campos de diseño.")
             return
         procesar_disenio(tab_d, tab_s)
         tabs.setCurrentIndex(1)
-    else:
-        tabs.setCurrentIndex(0)
+    else:  # Pestaña de simulación
+        if not campos_completos(tab_s):
+            QMessageBox.warning(ventana, "Campos incompletos", "Complete todos los campos antes de simular.")
+            return
+        try:
+            vin = obtener_valor(tab_s, "Vin")
+            vout = obtener_valor(tab_s, "Vout")
 
+            # Se toman los parámetros críticos de la pestaña de diseño
+            pout = obtener_valor(tab_d, "Pout")
+            delta_i = obtener_valor(tab_d, "ΔI")
+            delta_v = obtener_valor(tab_d, "ΔV")
+            fs = obtener_frecuencia(tab_d)
+
+            # Tiempo de simulación desde el slider (convertido a segundos)
+            t_max = ventana.slider.obtener_valor_ms() / 1000.0  # convertir a segundos
+
+            # Simulación
+            t, sol, comp = simular_cuk(vin, vout, pout, fs, delta_i, delta_v, t_max)
+
+            # ===============================
+            # GRÁFICA NORMAL DE MATPLOTLIB
+            # ===============================
+            plt.figure(figsize=(8,5))
+            plt.plot(t, sol[:,0], label="iL1 (A)")
+            plt.plot(t, sol[:,1], label="iL2 (A)")
+            plt.plot(t, sol[:,2], label="vC1 (V)")
+            plt.plot(t, sol[:,3], label="Vout (V)")
+            plt.xlabel("Tiempo (s)")
+            plt.ylabel("Corriente / Voltaje")
+            plt.title("Simulación Convertidor Ćuk")
+            plt.grid(True)
+            plt.legend()
+            plt.show()
+
+        except Exception as e:
+            QMessageBox.critical(tab_s, "Error de simulación", str(e))
+
+# =========================================
+# FUNCIONES AUXILIARES
+# =========================================
 def campos_completos(tab):
     return all(entrada.text().strip() != "" for entrada in tab.campos.values())
 
