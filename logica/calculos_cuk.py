@@ -1,18 +1,36 @@
-def disenar_cuk(vin, vout, pout, fs, delta_i, delta_v):
-    D = duty_cycle_ideal(vin, vout)
+def calcular_diseno_cuk(vin, vout, pout, di, dv, freq):
+    """
+    Realiza los cálculos estáticos para un convertidor Ćuk en CCM.
+    """
+    try:
+        vout_abs = abs(vout)
+        # Ciclo de trabajo D
+        d = vout_abs / (vin + vout_abs)
 
-    Iout = pout / abs(vout)
+        # Resistencia de carga
+        r_carga = (vout_abs ** 2) / pout
+        io = vout_abs / r_carga
 
-    L1 = (vin * D) / (fs * delta_i)
-    L2 = (abs(vout) * (1 - D)) / (fs * delta_i)
+        # Inductancias (en Henrios)
+        l1 = (vin * d) / (freq * di)
+        l2 = (vin * d) / (freq * di)
 
-    C1 = (Iout * D) / (fs * delta_v)
-    C2 = Iout / (8 * fs * delta_v)
+        # Capacitancias (en Faradios)
+        # C1 basado en 5% de rizado de Vin como estándar de transferencia
+        vc1_ripple = 0.05 * vin
+        c1 = (io * d) / (freq * vc1_ripple)
 
-    return {
-        "Duty": D,
-        "L1": L1,
-        "L2": L2,
-        "C1": C1,
-        "C2": C2
-    }
+        # C2 basado en el rizado de voltaje de salida deseado
+        c2 = di / (8 * freq * dv)
+
+        return {
+            "Ciclo": d,
+            "R": r_carga,
+            "L1": l1,
+            "L2": l2,
+            "C1": c1,
+            "C2": c2
+        }
+    except Exception as e:
+        print(f"Error en calculos_cuk: {e}")
+        return None
