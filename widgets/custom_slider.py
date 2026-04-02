@@ -1,67 +1,40 @@
-from PyQt5.QtWidgets import QSlider, QLabel
+from PyQt5.QtWidgets import QSlider
 from PyQt5.QtCore import Qt
 
 
 class CustomSlider(QSlider):
-    """
-    Slider personalizado para controlar el tiempo de simulación.
+    MIN_STEPS = 0
+    MAX_STEPS = 1000
 
-    Características:
-    • Orientación horizontal
-    • Cambio de color al interactuar
-    • Etiqueta automática con unidades dinámicas
-    • Diseño reutilizable
-    """
+    # Rango físico real
+    T_MIN_US = 100  # 100 µs
+    T_MAX_US = 1000000  # 1 s (1,000,000 µs)
 
-    # ==============================
-    # CONFIGURACIÓN GENERAL
-    # ==============================
-    MINIMO = 100
-    MAXIMO = 3000
-    VALOR_INICIAL = 100
-    ANCHO = 220
-
-    COLOR_NORMAL = "#888"
-    COLOR_ACTIVO = "#00A8FF"
-    COLOR_FONDO = "#444"
-
-    # ==============================
-    # INICIALIZACIÓN
-    # ==============================
     def __init__(self, parent=None):
         super().__init__(Qt.Horizontal, parent)
+        self.setRange(self.MIN_STEPS, self.MAX_STEPS)
+        self.setValue(0)
+        self.setFixedWidth(220)
+        self.setStyleSheet(self._estilo("#888"))
 
-        # Configuración básica
-        self.setRange(self.MINIMO, self.MAXIMO)
-        self.setValue(self.VALOR_INICIAL)
-        self.setFixedWidth(self.ANCHO)
-
-        # Aplicar estilo inicial
-        self.setStyleSheet(self._estilo(self.COLOR_NORMAL))
-
-        # Eventos de interacción
         self.sliderPressed.connect(self._activar_color)
         self.sliderReleased.connect(self._restaurar_color)
 
-        # Etiqueta para mostrar valor actual
-        self.valor_label = QLabel(parent)
-        self.valor_label.setAlignment(Qt.AlignCenter)
+    def obtener_valor_us(self):
+        """Usa una curva cúbica para un avance súper suave."""
+        paso_normalizado = self.value() / self.MAX_STEPS
 
-        # Conectar actualización automática
-        self.valueChanged.connect(self._actualizar_tiempo)
-        self._actualizar_tiempo(self.value())
+        # Fórmula cúbica: Suaviza la transición y evita saltos bruscos
+        valor_us = self.T_MIN_US + (self.T_MAX_US - self.T_MIN_US) * (paso_normalizado ** 3)
+        return valor_us
 
-    # ==============================
-    # ESTILOS DINÁMICOS
-    # ==============================
+    def obtener_valor_ms(self):
+        return self.obtener_valor_us() / 1000.0
+
     def _estilo(self, color_handle):
-        """
-        Genera el estilo visual del slider.
-        Permite cambiar dinámicamente el color del botón.
-        """
         return f"""
             QSlider::groove:horizontal {{
-                background: {self.COLOR_FONDO};
+                background: #444;
                 height: 8px;
                 border-radius: 4px;
             }}
@@ -73,34 +46,6 @@ class CustomSlider(QSlider):
             }}
         """
 
-    def _activar_color(self):
-        """Cambia el color al presionar el slider."""
-        self.setStyleSheet(self._estilo(self.COLOR_ACTIVO))
+    def _activar_color(self): self.setStyleSheet(self._estilo("#00A8FF"))
 
-    def _restaurar_color(self):
-        """Restaura el color al soltar el slider."""
-        self.setStyleSheet(self._estilo(self.COLOR_NORMAL))
-
-    # ==============================
-    # CONVERSIÓN DE UNIDADES
-    # ==============================
-    def _actualizar_tiempo(self, valor):
-        """
-        Convierte automáticamente el valor del slider
-        a unidades legibles (µs o ms).
-        """
-        if valor < 1000:
-            self.valor_label.setText(f"{valor} µs")
-        else:
-            self.valor_label.setText(f"{valor/1000:.2f} ms")
-
-    # ==============================
-    # MÉTODOS ÚTILES FUTUROS
-    # ==============================
-    def obtener_valor_us(self):
-        """Devuelve el valor en microsegundos."""
-        return self.value()
-
-    def obtener_valor_ms(self):
-        """Devuelve el valor en milisegundos."""
-        return self.value() / 1000
+    def _restaurar_color(self): self.setStyleSheet(self._estilo("#888"))

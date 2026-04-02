@@ -86,93 +86,55 @@ def auto_formatear(valor, tipo="C"):
 # 2. MOTOR DE SIMULACIÓN (CONMUTADA Y SEGURA)
 # ==========================================================
 
-def simular_sistema_cuk(params, t_final, f_sw):
-    try:
-        dt = 1 / (f_sw * 100)
-        steps = int(t_final / dt)
+def simular_sistema_cuk(Vin, L1, C1, L2, C2, R, D, f_sw, t_simulacion):
+    """
+    Simulación dinámica de un convertidor Ćuk usando el método de Euler.
+    """
+    # 1. Configuración de tiempo
+    T = 1.0 / f_sw
+    pasos_por_ciclo = 400  # Alta resolución para garantizar estabilidad numérica
+    dt = T / pasos_por_ciclo
 
-        if steps > 400000:
-            steps = 400000
-            dt = t_final / steps
+    num_steps = int(t_simulacion / dt)
+    if num_steps <= 0:
+        num_steps = 1
 
-        steps = max(1000, steps)
-        t = np.linspace(0, t_final, steps)
-        T = 1 / f_sw
+    t = np.linspace(0, t_simulacion, num_steps)
 
-        Vin, L1, L2, C1, C2, R = params['Vin'], params['L1'], params['L2'], params['C1'], params['C2'], params['R']
+    # 2. Inicialización de variables de estado
+    iL1 = np.zeros(num_steps)  # Corriente inductor entrada
+    vC1 = np.zeros(num_steps)  # Voltaje capacitor intermedio
+    iL2 = np.zeros(num_steps)  # Corriente inductor salida
+    Vo = np.zeros(num_steps)  # Voltaje de salida (en C2)
 
-        # --- NUEVOS PARÁMETROS (Con valores por defecto si no existen) ---
-        rL1 = params.get('rL1', 0.05)  # 50 mΩ por defecto
-        rL2 = params.get('rL2', 0.05)
+    # 3. Bucle de Simulación (Integración numérica)
+    for k in range(num_steps - 1):
+        t_ciclo = t[k] % T
 
-        # Variables PID
-        lazo_cerrado = params.get('LazoCerrado', False)
-        Vref = abs(params.get('Vout', 12.0))  # Meta del PID (valor absoluto)
-        Kp = params.get('Kp', 0.005)
-        Ki = params.get('Ki', 2.0)
+        if t_ciclo < D * T:
+            # ==========================================
+            # ESTADO 1: MOSFET ON / DIODO OFF
+            # ==========================================
+            diL1_dt = Vin / L1
+            dvC1_dt = iL2[k] / C1  # Signo corregido para descarga correcta
+            diL2_dt = (-vC1[k] - Vo[k]) / L2
+            dVo_dt = (iL2[k] - Vo[k] / R) / C2
+        else:
+            # ==========================================
+            # ESTADO 2: MOSFET OFF / DIODO ON
+            # ==========================================
+            diL1_dt = (Vin - vC1[k]) / L1
+            dvC1_dt = iL1[k] / C1
+            diL2_dt = -Vo[k] / L2
+            dVo_dt = (iL2[k] - Vo[k] / R) / C2
 
-        # Estado inicial del Duty Cycle
-        D_actual = params['D']
-        integral_e = 0.0
+        # 4. Aplicación del Método de Euler
+        iL1[k + 1] = iL1[k] + diL1_dt * dt
+        vC1[k + 1] = vC1[k] + dvC1_dt * dt
+        iL2[k + 1] = iL2[k] + diL2_dt * dt
+        Vo[k + 1] = Vo[k] + dVo_dt * dt
 
-        il1, il2, vc1, vc2 = np.zeros(steps), np.zeros(steps), np.zeros(steps), np.zeros(steps)
-        duty_array = np.zeros(steps)
-
-        for i in range(steps - 1):
-            # --- LÓGICA DE CONTROL ---
-            if lazo_cerrado:
-                # El Cuk invierte, medimos el valor absoluto
-                error = Vref - abs(vc2[i])
-                integral_e += error * dt
-
-                # Anti-windup básico
-                integral_e = max(-0.5 / Ki, min(0.5 / Ki, integral_e)) if Ki != 0 else 0
-
-                D_actual = (Kp * error) + (Ki * integral_e)
-                D_actual = max(0.1, min(0.9, D_actual))  # Limitar entre 10% y 90%
-
-            duty_array[i] = D_actual
-            estado_on = (t[i] % T) < (D_actual * T)
-
-            # --- MODELADO FÍSICO CON PÉRDIDAS (rL1 y rL2) ---
-            if estado_on:
-                dil1 = (Vin - (il1[i] * rL1)) / L1
-                dil2 = (vc1[i] + vc2[i] - (il2[i] * rL2)) / L2
-            else:
-                dil1 = (Vin - vc1[i] - (il1[i] * rL1)) / L1
-                dil2 = (vc2[i] - (il2[i] * rL2)) / L2
-
-            il1[i + 1] = il1[i] + dil1 * dt
-            il2[i + 1] = il2[i] + dil2 * dt
-
-            if estado_on:
-                dvc1 = -il2[i + 1] / C1
-                dvc2 = (-il2[i + 1] - vc2[i] / R) / C2
-            else:
-                dvc1 = il1[i + 1] / C1
-                dvc2 = (-il2[i + 1] - vc2[i] / R) / C2
-
-            vc1[i + 1] = vc1[i] + dvc1 * dt
-            vc2[i + 1] = vc2[i] + dvc2 * dt
-
-            if not np.isfinite(vc2[i + 1]):
-                break
-
-        duty_array[-1] = duty_array[-2]
-
-        # Solo retornamos Duty si estamos en Lazo Cerrado para no saturar gráficas innecesariamente
-        resultados = {
-            "iL1": il1[:i + 2],
-            "iL2": il2[:i + 2],
-            "vC1": vc1[:i + 2],
-            "Vo": vc2[:i + 2]
-        }
-        if lazo_cerrado:
-            resultados["Duty Cycle (PID)"] = duty_array[:i + 2]
-
-        return t[:i + 2], resultados
-    except Exception as e:
-        raise Exception(f"Error en cálculos físicos: {str(e)}")
+    return t, iL1, vC1, iL2, Vo
 
 
 # ==========================================================
@@ -219,6 +181,7 @@ def ejecutar_accion(ventana, tabs):
 
             tabs.setCurrentIndex(1)
 
+
         else:  # MODO SIMULACIÓN
 
             # 1. Leer Vin y el Vout deseado de la pestaña simulación
@@ -237,17 +200,55 @@ def ejecutar_accion(ventana, tabs):
 
             tab_actual.campos["Ciclo"].setText(f"{D_calculado * 100:.2f}")
 
-            # 3. Ahora sí, empaquetamos
+            # 3. Recopilar todos los parámetros físicos
 
             params = {k: obtener_valor_si(tab_actual, k) for k in ["Vin", "R", "L1", "L2", "C1", "C2"]}
 
-            params['D'] = D_calculado  # Usamos el D que acabamos de recalcular
-
             f_sw = obtener_frecuencia_hz(tab_actual)
 
-            t_ms = (ventana.slider.value() / ventana.slider.maximum()) ** 2 * ventana.slider.maximum()
+            t_ms = ventana.slider.obtener_valor_ms()
 
-            t, resultados = simular_sistema_cuk(params, t_ms / 1000.0, f_sw)
+            t_sim_segundos = t_ms / 1000.0  # Convertir a segundos
+
+            # 4. EJECUTAR SIMULACIÓN (Pasando los 9 parámetros exactos)
+
+            t, iL1, vC1, iL2, Vo = simular_sistema_cuk(
+
+                Vin=params["Vin"],
+
+                L1=params["L1"],
+
+                C1=params["C1"],
+
+                L2=params["L2"],
+
+                C2=params["C2"],
+
+                R=params["R"],
+
+                D=D_calculado,
+
+                f_sw=f_sw,
+
+                t_simulacion=t_sim_segundos
+
+            )
+
+            # 5. Empaquetar las señales para la VentanaGraficas
+
+            resultados = {
+
+                "iL1": iL1,
+
+                "vC1": vC1,
+
+                "iL2": iL2,
+
+                "Vo": Vo
+
+            }
+
+            # 6. Lanzar la gráfica
 
             if hasattr(ventana, 'dialogo_graficas'):
                 ventana.dialogo_graficas.close()
@@ -257,4 +258,5 @@ def ejecutar_accion(ventana, tabs):
             ventana.dialogo_graficas.show()
 
     except Exception as e:
+
         QMessageBox.critical(ventana, "Error Crítico", f"Ocurrió un fallo inesperado:\n{str(e)}")

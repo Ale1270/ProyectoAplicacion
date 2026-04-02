@@ -145,7 +145,7 @@ class VentanaPrincipal(QMainWindow):
 
     # ==============================
     # SLIDER DE TIEMPO
-    # ==============================
+        # ==============================
     def _crear_slider_simulacion(self):
         layout = QVBoxLayout()
 
@@ -161,8 +161,9 @@ class VentanaPrincipal(QMainWindow):
         self.valor_label.setFont(QFont(self.FUENTE, 10))
 
         etiquetas = QHBoxLayout()
-        min_lbl = QLabel("0 ms")
-        max_lbl = QLabel("3.0 s")
+        # Actualizamos los límites visuales
+        min_lbl = QLabel("100 µs")
+        max_lbl = QLabel("1.0 s")
 
         for lbl in (min_lbl, max_lbl):
             lbl.setFont(QFont(self.FUENTE, 9))
@@ -206,13 +207,15 @@ class VentanaPrincipal(QMainWindow):
     # FUNCIONES AUXILIARES
     # ==============================
     def _actualizar_tiempo(self, valor):
-        valor_normalizado = (valor / self.slider.maximum()) ** 2
-        valor_real = int(valor_normalizado * self.slider.maximum())
-
-        if valor_real < 1000:
-            self.valor_label.setText(f"{valor_real} ms")
+        # Le pedimos el tiempo ya calculado a nuestro slider inteligente
+        t_us = self.slider.obtener_valor_us()
+        # Formateamos el texto dinámicamente según la magnitud
+        if t_us < 1000:
+            self.valor_label.setText(f"{int(t_us)} µs")
+        elif t_us < 1000000:
+            self.valor_label.setText(f"{t_us / 1000:.2f} ms")
         else:
-            self.valor_label.setText(f"{valor_real/1000:.2f} s")
+            self.valor_label.setText(f"{t_us / 1000000:.2f} s")
 
     def _ajustar_imagen(self):
         if self.pixmap_original and not self.pixmap_original.isNull():
