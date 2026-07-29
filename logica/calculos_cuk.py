@@ -41,6 +41,9 @@ def calcular_diseno_cuk(vin, vout, pout, di, dv, freq):
 def simular_sistema_cuk(Vin, L1, C1, L2, C2, R, D, f_sw, t_simulacion):
     """
     Simulación dinámica de un convertidor Ćuk usando el método de Runge-Kutta de 4to orden (RK4).
+
+    Corrección aplicada: Conmutación basada en índices enteros (pasos de simulación)
+    para evitar errores de precisión de punto flotante en la condición ON/OFF.
     """
     T = 1.0 / f_sw
     pasos_por_ciclo = 70
@@ -57,23 +60,27 @@ def simular_sistema_cuk(Vin, L1, C1, L2, C2, R, D, f_sw, t_simulacion):
     iL2 = np.zeros(num_steps)
     Vo = np.zeros(num_steps)
 
+    # Cálculo exacto de pasos en estado ON dentro de un ciclo
+    pasos_on = int(round(D * pasos_por_ciclo))
+
     for k in range(num_steps - 1):
-        t_ciclo = t[k] % T
+        # Evaluación exacta de conmutación mediante entero discreto
+        es_estado_on = (k % pasos_por_ciclo) < pasos_on
 
         # Variables actuales para simplificar la lectura de fórmulas
         y1, y2, y3, y4 = iL1[k], vC1[k], iL2[k], Vo[k]
 
-        if t_ciclo < D * T:
+        if es_estado_on:
             # ==========================================
             # ESTADO 1: MOSFET ON / DIODO OFF
             # ==========================================
-            # K1 (Pendientes al inicio del intervalo)
+            # K1
             k1_1 = Vin / L1
             k1_2 = y3 / C1
             k1_3 = (-y2 - y4) / L2
             k1_4 = (y3 - y4 / R) / C2
 
-            # K2 (Pendientes en el punto medio, usando k1)
+            # K2
             y2_mid = y2 + k1_2 * dt / 2
             y3_mid = y3 + k1_3 * dt / 2
             y4_mid = y4 + k1_4 * dt / 2
@@ -83,7 +90,7 @@ def simular_sistema_cuk(Vin, L1, C1, L2, C2, R, D, f_sw, t_simulacion):
             k2_3 = (-y2_mid - y4_mid) / L2
             k2_4 = (y3_mid - y4_mid / R) / C2
 
-            # K3 (Pendientes en el punto medio, usando k2)
+            # K3
             y2_mid2 = y2 + k2_2 * dt / 2
             y3_mid2 = y3 + k2_3 * dt / 2
             y4_mid2 = y4 + k2_4 * dt / 2
@@ -93,7 +100,7 @@ def simular_sistema_cuk(Vin, L1, C1, L2, C2, R, D, f_sw, t_simulacion):
             k3_3 = (-y2_mid2 - y4_mid2) / L2
             k3_4 = (y3_mid2 - y4_mid2 / R) / C2
 
-            # K4 (Pendientes al final del intervalo, usando k3)
+            # K4
             y2_end = y2 + k3_2 * dt
             y3_end = y3 + k3_3 * dt
             y4_end = y4 + k3_4 * dt
