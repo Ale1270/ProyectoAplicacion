@@ -10,7 +10,7 @@ class VentanaEjemplos(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent_window = parent
-        self.setWindowTitle("Ejemplos de Diseño y Casos de Uso - Convertidor Ćuk")
+        self.setWindowTitle("Ejemplos de Diseño - Convertidor Ćuk")
 
         # 1. Eliminar el botón de ayuda (?) de la barra de título
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
