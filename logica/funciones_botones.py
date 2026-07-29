@@ -7,10 +7,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 try:
     from widgets.ventana_graficas import VentanaGraficas
+    from widgets.ventana_carga import VentanaCarga, HiloSimulacion
     # IMPORTAMOS TODAS LAS FUNCIONES MATEMÁTICAS DESDE CALCULOS_CUK
     from logica.calculos_cuk import calcular_diseno_cuk, simular_sistema_cuk, calcular_caracteristicas_estado_estable
 except ImportError:
     from ventana_graficas import VentanaGraficas
+    from ventana_carga import VentanaCarga, HiloSimulacion
     from calculos_cuk import calcular_diseno_cuk, simular_sistema_cuk, calcular_caracteristicas_estado_estable
 
 
@@ -124,11 +126,11 @@ def ejecutar_accion(ventana, tabs):
 
         else:  # MODO SIMULACIÓN
 
-            # 1. Leer Vin y el Vout deseado
+            # 1. Leer Vin y Vout deseado
             Vin_sim = obtener_valor_si(tab_actual, "Vin")
             Vout_sim = obtener_valor_si(tab_actual, "Vout")
 
-            # 2. Forzar el recálculo del Ciclo de Trabajo (D)
+            # 2. Recalcular Ciclo de Trabajo (D)
             D_calculado = abs(Vout_sim) / (abs(Vout_sim) + Vin_sim)
             tab_actual.campos["Ciclo"].setText(f"{D_calculado * 100:.2f}")
 
@@ -138,46 +140,60 @@ def ejecutar_accion(ventana, tabs):
             t_ms = ventana.slider.obtener_valor_ms()
             t_sim_segundos = t_ms / 1000.0
 
-            # 4. EJECUTAR SIMULACIÓN (LLamada al archivo externo)
-            t, iL1, vC1, iL2, Vo = simular_sistema_cuk(
-                Vin=params["Vin"],
-                L1=params["L1"],
-                C1=params["C1"],
-                L2=params["L2"],
-                C2=params["C2"],
-                R=params["R"],
-                D=D_calculado,
-                f_sw=f_sw,
-                t_simulacion=t_sim_segundos
+            # 4. PREPARAR ARGUMENTOS PARA LA SIMULACIÓN
+            args_sim = (
+                params["Vin"], params["L1"], params["C1"], params["L2"],
+                params["C2"], params["R"], D_calculado, f_sw, t_sim_segundos
             )
 
-            # 5. OBTENER CARACTERÍSTICAS Y ACTUALIZAR LA INTERFAZ
-            datos_estable = calcular_caracteristicas_estado_estable(params["Vin"], params["R"], D_calculado, t, iL1, iL2, Vo, f_sw)
+            # 5. CREAR VENTANA DE CARGA E HILO
+            ventana.ventana_carga = VentanaCarga(ventana)
+            ventana.hilo_sim = HiloSimulacion(
+                simular_sistema_cuk,
+                calcular_caracteristicas_estado_estable,
+                args_sim
+            )
 
-            if datos_estable:
-                ventana.lbl_val_pin.setText(f"{datos_estable['Pin']:.2f} W")
-                ventana.lbl_val_pout.setText(f"{datos_estable['Pout']:.2f} W")
-                ventana.lbl_val_eficiencia.setText(f"{datos_estable['Eficiencia']:.1f} %")
-                ventana.lbl_val_t_estable.setText(datos_estable['Tiempo'])
-            else:
-                ventana.lbl_val_pin.setText("Error")
-                ventana.lbl_val_pout.setText("Error")
-                ventana.lbl_val_eficiencia.setText("Error")
-                ventana.lbl_val_t_estable.setText("Error")
+            # 6. CALLBACK PARA CUANDO SE COMPLETA LA SIMULACIÓN
+            def al_completar_simulacion(res_sim, datos_estable):
+                t, iL1, vC1, iL2, Vo = res_sim
 
-            # 6. Empaquetar las señales y graficar
-            resultados = {
-                "iL1": iL1,
-                "vC1": vC1,
-                "iL2": iL2,
-                "Vo": Vo
-            }
+                if datos_estable:
+                    ventana.lbl_val_pin.setText(f"{datos_estable['Pin']:.2f} W")
+                    ventana.lbl_val_pout.setText(f"{datos_estable['Pout']:.2f} W")
+                    ventana.lbl_val_eficiencia.setText(f"{datos_estable['Eficiencia']:.1f} %")
+                    ventana.lbl_val_t_estable.setText(datos_estable['Tiempo'])
+                else:
+                    ventana.lbl_val_pin.setText("Error")
+                    ventana.lbl_val_pout.setText("Error")
+                    ventana.lbl_val_eficiencia.setText("Error")
+                    ventana.lbl_val_t_estable.setText("Error")
 
-            if hasattr(ventana, 'dialogo_graficas'):
-                ventana.dialogo_graficas.close()
+                resultados = {
+                    "iL1": iL1,
+                    "vC1": vC1,
+                    "iL2": iL2,
+                    "Vo": Vo
+                }
 
-            ventana.dialogo_graficas = VentanaGraficas(t, resultados, ventana)
-            ventana.dialogo_graficas.show()
+                if hasattr(ventana, 'dialogo_graficas') and ventana.dialogo_graficas:
+                    ventana.dialogo_graficas.close()
+
+                ventana.dialogo_graficas = VentanaGraficas(t, resultados, ventana)
+                ventana.dialogo_graficas.show()
+
+            # 7. CALLBACK PARA CAPTURAR ERRORES
+            def al_fallar_simulacion(mensaje_error):
+                QMessageBox.critical(ventana, "Error en Simulación", f"Ocurrió un error en el cálculo:\n{mensaje_error}")
+
+            # 8. CONECTAR SEÑALES Y DISPARAR
+            ventana.hilo_sim.progreso.connect(ventana.ventana_carga.actualizar_progreso)
+            ventana.hilo_sim.finalizado.connect(al_completar_simulacion)
+            ventana.hilo_sim.error.connect(al_fallar_simulacion)
+            ventana.hilo_sim.finished.connect(ventana.ventana_carga.accept)
+
+            ventana.hilo_sim.start()
+            ventana.ventana_carga.exec_()
 
     except Exception as e:
         QMessageBox.critical(ventana, "Error Crítico", f"Ocurrió un fallo inesperado:\n{str(e)}")
