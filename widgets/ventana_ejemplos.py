@@ -29,7 +29,7 @@ class VentanaEjemplos(QDialog):
         layout_principal.setSpacing(15)
 
         # Encabezado
-        lbl_titulo = QLabel("Seleccione un Ejemplo")
+        lbl_titulo = QLabel("Seleccione un ejemplo")
         lbl_titulo.setFont(QFont("Segoe UI", 16, QFont.Bold))
         lbl_titulo.setAlignment(Qt.AlignCenter)
         lbl_titulo.setStyleSheet("color: #ffffff; margin-bottom: 5px;")
