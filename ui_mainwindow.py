@@ -1,7 +1,8 @@
 import os
 import sys
 from PyQt5.QtWidgets import (
-    QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QTabWidget, QPushButton, QGridLayout
+    QMainWindow, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QTabWidget, QPushButton, QGridLayout, QLineEdit, QComboBox,
+    QApplication
 )
 from PyQt5.QtGui import QIcon, QFont, QPixmap, QGuiApplication
 from PyQt5.QtCore import Qt, QTimer
@@ -11,10 +12,10 @@ from widgets.tab_simular import TabSimular
 from widgets.custom_slider import CustomSlider
 from logica.funciones_botones import ejecutar_accion
 
-# --- NUEVAS IMPORTACIONES ---
-from logica.ayuda import mostrar_ayuda
-from logica.acerca_de import mostrar_acerca_de
+from widgets.ayuda import mostrar_ayuda
+from widgets.acerca_de import mostrar_acerca_de
 from widgets.ventana_ejemplos import VentanaEjemplos
+from widgets.guia_interactiva import CuadroExplicativo
 
 
 def resource_path(relative_path):
@@ -32,12 +33,12 @@ def resource_path(relative_path):
     if os.path.exists(ruta_relativa_archivo):
         return ruta_relativa_archivo
 
-    # 2. Buscar un nivel arriba (por si ui_mainwindow está en una subcarpeta como 'gui/' o 'widgets/')
+    # 2. Buscar un nivel arriba
     ruta_nivel_superior = os.path.join(os.path.dirname(directorio_actual), relative_path)
     if os.path.exists(ruta_nivel_superior):
         return ruta_nivel_superior
 
-    # 3. Caída por defecto a la ruta del directorio de trabajo actual
+    # 3. Caída por defecto
     return os.path.join(os.path.abspath("."), relative_path)
 
 
@@ -60,6 +61,7 @@ class VentanaPrincipal(QMainWindow):
     def __init__(self, ancho=870, alto=600):
         super().__init__()
         self.size = (ancho, alto)
+        self.guia = None
         self._inicializar_ui()
 
     # ==============================
@@ -80,7 +82,23 @@ class VentanaPrincipal(QMainWindow):
     def _configurar_apariencia(self):
         self.setWindowTitle("Convertidor CUK")
         self.resize(*self.size)
+
         self.setStyleSheet(f"background-color: {self.COLOR_FONDO}; color: white;")
+
+        # Estilo exclusivo para los ToolTips a nivel global de la aplicación
+        app = QApplication.instance()
+        if app:
+            app.setStyleSheet("""
+                QToolTip {
+                    background-color: #2b2b2b;
+                    color: #ffffff;
+                    border: 1px solid #666666;
+                    padding: 5px 8px;
+                    border-radius: 4px;
+                    font-size: 11px;
+                }
+            """)
+
         self.setWindowOpacity(0.98)
         self.setMaximumSize(900, 700)
         self.setMinimumSize(800, 580)
@@ -105,6 +123,7 @@ class VentanaPrincipal(QMainWindow):
 
         self.tabs.currentChanged.connect(self._actualizar_texto_boton)
         self._actualizar_texto_boton(self.tabs.currentIndex())
+        self._asignar_tooltips_pestanas()
 
     # ==============================
     # PANEL IZQUIERDO
@@ -144,9 +163,56 @@ class VentanaPrincipal(QMainWindow):
             QTabBar::tab:hover { background: #484848; }
             QTabBar::tab:selected { background: #1e1e1e; border-bottom: 3px solid #aaa; }
         """)
-        tabs.addTab(TabDisenar(), "Diseñar")
-        tabs.addTab(TabSimular(), "Simular")
+
+        self.tab_disenar = TabDisenar()
+        self.tab_simular = TabSimular()
+
+        tabs.addTab(self.tab_disenar, "Diseñar")
+        tabs.addTab(self.tab_simular, "Simular")
+
+        tabs.setTabToolTip(0, "Diseño y cálculo de componentes del convertidor.")
+        tabs.setTabToolTip(1, "Simulación y análisis dinámico del convertidor.")
+
         return tabs
+
+    def _asignar_tooltips_pestanas(self):
+        """Asigna descripciones breves al pasar el cursor por los componentes de las pestañas."""
+        if hasattr(self.tab_disenar, "campos"):
+            tooltips_campos = {
+                "Vin": "Voltaje de entrada del convertidor.",
+                "Vout": "Voltaje de salida deseado.",
+                "Pout": "Potencia de salida.",
+                "ΔI": "Rizado de corriente.",
+                "ΔV": "Rizado de voltaje.",
+                "Frecuencia": "Frecuencia de conmutación."
+            }
+            for clave, widget in self.tab_disenar.campos.items():
+                if clave in tooltips_campos:
+                    widget.setToolTip(tooltips_campos[clave])
+
+        if hasattr(self.tab_disenar, "combos"):
+            tooltips_combos = {
+                "Vin": "Unidad del voltaje de entrada.",
+                "Vout": "Unidad del voltaje de salida.",
+                "Pout": "Unidad de la potencia de salida.",
+                "ΔI": "Unidad del rizado de corriente.",
+                "ΔV": "Unidad del rizado de voltaje.",
+                "Frecuencia": "Frecuencia de conmutación."
+            }
+            for clave, widget in self.tab_disenar.combos.items():
+                if clave in tooltips_combos:
+                    widget.setToolTip(tooltips_combos[clave])
+
+        for tab in (self.tab_disenar, self.tab_simular):
+            for edit in tab.findChildren(QLineEdit):
+                if not edit.toolTip():
+                    edit.setToolTip("Ingresar valor.")
+            for combo in tab.findChildren(QComboBox):
+                if not combo.toolTip():
+                    combo.setToolTip("Seleccionar unidad.")
+            for btn in tab.findChildren(QPushButton):
+                if not btn.toolTip():
+                    btn.setToolTip("Ejecutar acción.")
 
     # ==============================
     # PANEL DERECHO (CONTROLES)
@@ -154,14 +220,14 @@ class VentanaPrincipal(QMainWindow):
     def _crear_panel_derecho(self):
         layout = QVBoxLayout()
 
-        panel_caracteristicas = self._crear_panel_caracteristicas()
+        panel_caracteristicas_widget = self._crear_panel_caracteristicas()
         slider_contenedor = self._crear_slider_simulacion()
         boton_ejecutar = self._crear_boton_ejecutar()
-        boton_ejemplos = self._crear_boton_ejemplos()  # Botón creado
+        boton_ejemplos = self._crear_boton_ejemplos()
         botones_extra = self._crear_botones_extra()
 
         layout.addStretch(1)
-        layout.addLayout(panel_caracteristicas)
+        layout.addWidget(panel_caracteristicas_widget)
 
         layout.addSpacing(80)
 
@@ -169,7 +235,6 @@ class VentanaPrincipal(QMainWindow):
         layout.addSpacing(15)
         layout.addWidget(boton_ejecutar, alignment=Qt.AlignHCenter)
 
-        # Ubicado debajo del botón principal y arriba de ayuda / acerca de
         layout.addSpacing(70)
         layout.addWidget(boton_ejemplos, alignment=Qt.AlignHCenter)
 
@@ -182,7 +247,9 @@ class VentanaPrincipal(QMainWindow):
     # CARACTERÍSTICAS ESTADO ESTABLE
     # ==============================
     def _crear_panel_caracteristicas(self):
-        layout = QVBoxLayout()
+        self.panel_caracteristicas = QWidget()
+        layout = QVBoxLayout(self.panel_caracteristicas)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
         titulo = QLabel("Características en estado\nestable del convertidor")
@@ -221,7 +288,7 @@ class VentanaPrincipal(QMainWindow):
             grid.addWidget(lbl_valor, i, 1)
 
         layout.addLayout(grid)
-        return layout
+        return self.panel_caracteristicas
 
     # ==============================
     # SLIDER DE TIEMPO
@@ -234,6 +301,7 @@ class VentanaPrincipal(QMainWindow):
         label.setFont(QFont(self.FUENTE, 11, QFont.Bold))
 
         self.slider = CustomSlider()
+        self.slider.setToolTip("Tiempo de simulación.")
         self.slider.valueChanged.connect(self._actualizar_tiempo)
 
         self.valor_label = QLabel()
@@ -267,6 +335,7 @@ class VentanaPrincipal(QMainWindow):
     # ==============================
     def _crear_boton_ejecutar(self):
         self.btn_ejecutar = QPushButton("Calcular filtros")
+        self.btn_ejecutar.setToolTip("Diseñar o simular según la pestaña activa.")
         self.btn_ejecutar.setFixedSize(160, 45)
         self.btn_ejecutar.setCursor(Qt.PointingHandCursor)
         self.btn_ejecutar.setStyleSheet("""
@@ -289,11 +358,12 @@ class VentanaPrincipal(QMainWindow):
     # ==============================
     def _crear_boton_ejemplos(self):
         self.btn_ejemplos = QPushButton("Cargar Ejemplos")
-        self.btn_ejemplos.setFixedSize(120, 35)
+        self.btn_ejemplos.setToolTip("Cargar ejemplos predefinidos.")
+        self.btn_ejemplos.setFixedSize(130, 35)
         self.btn_ejemplos.setCursor(Qt.PointingHandCursor)
         self.btn_ejemplos.setStyleSheet("""
             QPushButton {
-                background-color: #0078D7;
+                background-color: #3a3a3a;
                 border: 1px solid #555;
                 border-radius: 6px;
                 color: white;
@@ -301,8 +371,13 @@ class VentanaPrincipal(QMainWindow):
                 font-weight: bold;
                 padding: 5px;
             }
-            QPushButton:hover { background-color: #005A9E; }
-            QPushButton:pressed { background-color: #004578; }
+            QPushButton:hover { 
+                background-color: #505050; 
+                border: 1px solid #777;
+            }
+            QPushButton:pressed { 
+                background-color: #2e2e2e; 
+            }
         """)
         self.btn_ejemplos.clicked.connect(self.abrir_ventana_ejemplos)
         return self.btn_ejemplos
@@ -315,7 +390,10 @@ class VentanaPrincipal(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
 
         boton_ayuda = QPushButton("Ayuda")
+        boton_ayuda.setToolTip("Guía de uso y ayuda.")
+
         boton_acerca = QPushButton("Acerca de")
+        boton_acerca.setToolTip("Información de la aplicación.")
 
         estilo = """
             QPushButton {
@@ -367,7 +445,6 @@ class VentanaPrincipal(QMainWindow):
             ancho = self.imagen.width()
             alto = self.imagen.height()
 
-            # Evita escalar la imagen a 0x0 píxeles durante el inicio de la ventana
             if ancho > 20 and alto > 20:
                 pixmap = self.pixmap_original.scaled(
                     ancho,
@@ -377,7 +454,6 @@ class VentanaPrincipal(QMainWindow):
                 )
                 self.imagen.setPixmap(pixmap)
             else:
-                # Asigna la imagen en tamaño original si el layout aún no ha medido el widget
                 self.imagen.setPixmap(self.pixmap_original)
         else:
             print("[ADVERTENCIA] No se pudo cargar la imagen del convertidor Ćuk.")
@@ -394,20 +470,23 @@ class VentanaPrincipal(QMainWindow):
         )
 
     def abrir_ventana_ejemplos(self):
-        """Instancia y muestra la ventana de ejemplos como un diálogo."""
+        """Instancia y muestra la ventana de ejemplos de forma no modal."""
+        from PyQt5.QtCore import Qt
+
         self.ventana_ej = VentanaEjemplos(self)
-        self.ventana_ej.exec_()
+        self.ventana_ej.setWindowModality(Qt.NonModal)
+        self.ventana_ej.show()
+        self.ventana_ej.raise_()
+        self.ventana_ej.activateWindow()
 
     def cargar_datos_en_interfaz(self, datos):
         """
         Recibe un diccionario con parámetros de ejemplo y los asigna
         a los campos del diccionario 'campos' y 'combos' de TabDisenar.
         """
-        # Ir a la pestaña de Diseñar (índice 0)
         self.tabs.setCurrentIndex(0)
         tab_disenar = self.tabs.widget(0)
 
-        # 1. Asignar valores a los QLineEdit dentro del diccionario campos
         if hasattr(tab_disenar, "campos"):
             if "Vin" in tab_disenar.campos:
                 tab_disenar.campos["Vin"].setText(datos.get("vin", ""))
@@ -420,7 +499,259 @@ class VentanaPrincipal(QMainWindow):
             if "ΔV" in tab_disenar.campos:
                 tab_disenar.campos["ΔV"].setText(datos.get("delta_v", ""))
 
-        # 2. Seleccionar opción en el QComboBox de Frecuencia
         if hasattr(tab_disenar, "combos") and "Frecuencia" in tab_disenar.combos:
-            frec_index = datos.get("frec_index", 1)  # Índice de la opción
+            frec_index = datos.get("frec_index", 1)
             tab_disenar.combos["Frecuencia"].setCurrentIndex(frec_index)
+
+    def iniciar_guia_interactiva(self, seccion="todos"):
+        """
+        Configura y lanza el tour guiado paso a paso por secciones.
+        Incluye el paso interactivo para seleccionar un caso del catálogo de ejemplos.
+        """
+        # Localizar el widget exacto de Frecuencia dentro de tab_disenar
+        tab_d = self.tab_disenar
+        widget_frecuencia = tab_d  # Respaldo por defecto
+
+        if hasattr(tab_d, "combos") and "Frecuencia" in tab_d.combos:
+            widget_frecuencia = tab_d.combos["Frecuencia"]
+        elif hasattr(tab_d, "campos") and "Frecuencia" in tab_d.campos:
+            widget_frecuencia = tab_d.campos["Frecuencia"]
+
+        widget_ayuda = getattr(
+            self, "btn_ayuda", getattr(self, "btn_acerca", self.btn_ejecutar)
+        )
+
+        # Identificar la pestaña o área de gráficas dinámicamente
+        widget_graficas = getattr(
+            self, "tab_graficas", getattr(self, "area_graficas", getattr(self, "canvas", self.tabs))
+        )
+
+        todos_los_pasos = [
+            # =========================================================
+            # SUBDIVISIÓN 1: DESCRIPCIÓN GENERAL Y SECCIONES
+            # =========================================================
+            {
+                "seccion_key": "general",
+                "categoria": "1. Descripción General",
+                "widget": self.imagen,
+                "titulo": "Convertidor Ćuk DC-DC",
+                "texto": "Esta aplicación permite realizar el diseño completo y la simulación dinámica de convertidores DC-DC de tipo Ćuk de forma interactiva.",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+            {
+                "seccion_key": "general",
+                "categoria": "1. Descripción General",
+                "widget": self.tabs,
+                "titulo": "Pestañas de Trabajo",
+                "texto": "Ubicadas justo debajo de la imagen, te permiten alternar entre 'Diseñar' (cálculo de inductores y capacitores) y 'Simular' (análisis gráfico temporal).",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+            {
+                "seccion_key": "general",
+                "categoria": "1. Descripción General",
+                "widget": self.tab_disenar,
+                "titulo": "Panel de Ingreso de Datos",
+                "texto": "Aquí introducirás los parámetros requeridos para calcular el circuito o simular su comportamiento según la pestaña seleccionada.",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+            {
+                "seccion_key": "general",
+                "categoria": "1. Descripción General",
+                "widget": self.tab_disenar,
+                "titulo": "Formato para Ingresar Datos",
+                "texto": "Los campos aceptan valores enteros o decimales. Recuerda utilizar siempre el punto (.) como separador decimal (ejemplo: 12.5).",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+            {
+                "seccion_key": "general",
+                "categoria": "1. Descripción General",
+                "widget": self.tab_disenar,
+                "titulo": "Unidades Disponibles",
+                "texto": "Cada variable cuenta con un desplegable a su derecha para seleccionar la escala adecuada (V, mV, A, mA, %, etc.).",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+            {
+                "seccion_key": "general",
+                "categoria": "1. Descripción General",
+                "widget": widget_frecuencia,
+                "titulo": "Selección de Frecuencia",
+                "texto": "A mayor frecuencia de conmutación, los inductores y capacitores requeridos son más pequeños y el circuito se estabiliza más rápido. Una frecuencia baja exige componentes de mayor tamaño físico y un tiempo de asentamiento más prolongado.",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+            {
+                "seccion_key": "general",
+                "categoria": "1. Descripción General",
+                "widget": self.slider,
+                "titulo": "Control de Tiempo de Simulación",
+                "texto": "Esta barra deslizante permite ajustar la ventana temporal del análisis dinámico (desde 100 µs hasta 1.0 s) para observar transitorios cortos o el estado estable.",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+            {
+                "seccion_key": "general",
+                "categoria": "1. Descripción General",
+                "widget": self.btn_ejecutar,
+                "titulo": "Botón de Acción",
+                "texto": "Ejecuta los cálculos de dimensionamiento o la simulación temporal en función de la pestaña en la que te encuentres ubicado.",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+            {
+                "seccion_key": "general",
+                "categoria": "1. Descripción General",
+                "widget": self.btn_ejemplos,
+                "titulo": "Casos de Prueba Predefinidos",
+                "texto": "Permite seleccionar y cargar instantáneamente configuraciones típicas del convertidor Ćuk sin tener que digitar todos los valores manualmente.",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+            {
+                "seccion_key": "general",
+                "categoria": "1. Descripción General",
+                "widget": getattr(self, "panel_caracteristicas", self.lbl_val_pin),
+                "titulo": "Resumen de Estado Estable",
+                "texto": "Muestra los indicadores permanentes de desempeño del convertidor: potencia consumida, entregada, eficiencia global y tiempo de asentamiento.",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+            {
+                "seccion_key": "general",
+                "categoria": "1. Descripción General",
+                "widget": widget_ayuda,
+                "titulo": "Ayuda e Información",
+                "texto": "Acceso a la guía interactiva por secciones específicas y a los datos de versión y créditos de la aplicación.",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+
+            # =========================================================
+            # SUBDIVISIÓN 2: CARGA DE EJEMPLOS PREDEFINIDOS
+            # =========================================================
+            {
+                "seccion_key": "ejemplos",
+                "categoria": "2. Cargar Ejemplos",
+                "widget": self.btn_ejemplos,
+                "offset": (0, -8),
+                "titulo": "Apertura del Menú de Ejemplos",
+                "texto": "Presiona el botón 'Cargar Ejemplos' en el panel lateral para desplegar la ventana con configuraciones preseteadas del convertidor.",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+            {
+                "seccion_key": "ejemplos",
+                "categoria": "2. Cargar Ejemplos",
+                "posicion_pantalla": "centro",
+                "titulo": "Catálogo de Casos Disponibles",
+                "texto": "En esta ventana desplegada encontrarás diversas aplicaciones típicas de prueba (diseños de bajo voltaje, alta potencia, etc.).",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+            {
+                "seccion_key": "ejemplos",
+                "categoria": "2. Cargar Ejemplos",
+                "posicion_pantalla": (0, 0.5),
+                "titulo": "¡Prueba Cargar un Ejemplo!",
+                "texto": "Selecciona cualquiera de las opciones disponibles en la lista para ver cómo los datos del caso se rellenan y actualizan automáticamente en los campos de entrada de la aplicación.",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+
+            # =========================================================
+            # SUBDIVISIÓN 3: EJEMPLO DE USO DE DISEÑO
+            # =========================================================
+            {
+                "seccion_key": "diseno",
+                "categoria": "3. Ejemplo de Diseño",
+                "widget": self.tab_disenar,
+                "titulo": "Ingreso de Especificaciones",
+                "texto": "Con los datos cargados manualmente o mediante un ejemplo, en esta sección se definen Vin, Vout, Pout, los rizados permisibles y la frecuencia de trabajo.",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+            {
+                "seccion_key": "diseno",
+                "categoria": "3. Ejemplo de Diseño",
+                "widget": self.btn_ejecutar,
+                "offset": (0, -50),
+                "titulo": "Diseñar Filtros",
+                "texto": "Al presionar este botón se calcularán automáticamente los inductores L₁ y L₂ y los capacitores C₁ y C₂ requeridos para el diseño.",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            },
+
+            # =========================================================
+            # SUBDIVISIÓN 4: EJEMPLO DE SIMULACIÓN
+            # =========================================================
+            {
+                "seccion_key": "simulacion",
+                "categoria": "4. Ejemplo de Simulación",
+                "widget": self.tab_simular,
+                "titulo": "Parámetros de Simulación",
+                "texto": "En esta pestaña puedes modificar libremente los componentes físicos para validar la respuesta temporal del circuito.",
+                "accion": lambda: self.tabs.setCurrentIndex(1)
+            },
+            {
+                "seccion_key": "simulacion",
+                "categoria": "4. Ejemplo de Simulación",
+                "widget": self.slider,
+                "offset": (0, -50),
+                "titulo": "Ajuste de Tiempo",
+                "texto": "Ajusta la duración del análisis dinámico con este slider (desde 100 µs hasta 1.0 s).",
+                "accion": lambda: self.tabs.setCurrentIndex(1)
+            },
+            {
+                "seccion_key": "simulacion",
+                "categoria": "4. Ejemplo de Simulación",
+                "widget": self.btn_ejecutar,
+                "offset": (0, -50),
+                "titulo": "Ejecutar Simulación",
+                "texto": "Con la pestaña 'Simular' activa, al presionar este botón se generarán las gráficas temporales del convertidor.",
+                "accion": lambda: self.tabs.setCurrentIndex(1)
+            },
+
+            # =========================================================
+            # SUBDIVISIÓN 5: VISUALIZACIÓN DE GRÁFICAS
+            # =========================================================
+            {
+                "seccion_key": "graficas",
+                "categoria": "5. Visualización de Gráficas",
+                "widget": self.btn_ejecutar,
+                "offset": (0, -50),  # <--- Ubicado justo arriba del botón de acción
+                "titulo": "Generación de Gráficas",
+                "texto": "Al presionar este botón con la pestaña 'Simular' activa, el sistema resuelve el modelo dinámico y genera las respuestas temporales en pantalla.",
+                "accion": lambda: self.tabs.setCurrentIndex(1)
+            },
+            {
+                "seccion_key": "graficas",
+                "categoria": "5. Visualización de Gráficas",
+                "posicion_pantalla": (0.15, 0.78),  # <--- Esquina inferior izquierda de la ventana
+                "titulo": "Análisis de Transitorios y Rizado",
+                "texto": "Desde este sector podrás observar el comportamiento inicial de encendido (sobrepico y tiempo de asentamiento) y el nivel de rizado en estado estable.",
+                "accion": lambda: self.tabs.setCurrentIndex(1)
+            },
+            {
+                "seccion_key": "graficas",
+                "categoria": "5. Visualización de Gráficas",
+                "widget": widget_graficas,
+                "titulo": "Tipos de Gráficas Disponibles",
+                "texto": "La aplicación permite visualizar y alternar las curvas temporales del Voltaje de Salida (Vout), Corrientes en Inductores (iL₁ e iL₂) y Voltaje en el Capacitor vC₁.",
+                "accion": lambda: self.tabs.setCurrentIndex(1)
+            },
+
+            # =========================================================
+            # SUBDIVISIÓN 6: INTERPRETACIÓN DE ESTADO ESTABLE
+            # =========================================================
+            {
+                "seccion_key": "estable",
+                "categoria": "6. Características en Estable",
+                "widget": getattr(self, "panel_caracteristicas", self.lbl_val_pin),
+                "titulo": "Panel de Métricas Permanentes",
+                "texto": "Ubicado en el lateral derecho, este panel resume el desempeño final del convertidor: potencia consumida (Pin), entregada (Pout), eficiencia (%) y tiempo de asentamiento.",
+                "accion": lambda: self.tabs.setCurrentIndex(0)
+            }
+        ]
+
+        if seccion != "todos":
+            pasos_filtrados = [p for p in todos_los_pasos if p.get("seccion_key") == seccion]
+        else:
+            pasos_filtrados = todos_los_pasos
+
+        if not pasos_filtrados:
+            return
+
+        # Cerrar tour anterior si estuviera activo
+        if hasattr(self, "guia") and self.guia:
+            self.guia.close()
+
+        self.guia = CuadroExplicativo(pasos_filtrados, self)
+        self.guia.iniciar_tour()

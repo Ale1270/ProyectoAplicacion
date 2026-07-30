@@ -43,7 +43,7 @@ class VentanaCarga(QDialog):
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
-        self.setFixedSize(320, 16)
+        self.setFixedSize(450, 10)
         self._inicializar_ui()
 
         # 2. Centrar la barra exactamente en medio de la ventana principal
@@ -51,7 +51,7 @@ class VentanaCarga(QDialog):
             geo_parent = parent.geometry()
             x = geo_parent.x() + (geo_parent.width() - self.width()) // 2
             y = geo_parent.y() + (geo_parent.height() - self.height()) // 2
-            self.move(x, y )
+            self.move(x, y)
 
     def _inicializar_ui(self):
         layout = QVBoxLayout(self)
@@ -62,14 +62,15 @@ class VentanaCarga(QDialog):
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(False)
 
+        # Estilos adaptados al tema oscuro de la aplicación principal
         self.progress_bar.setStyleSheet("""
             QProgressBar {
-                background-color: #1E1E1E;
-                border: 1px solid #00A8FF;
+                background-color: #2E2E2E;
+                border: 1px solid #555555;
                 border-radius: 8px;
             }
             QProgressBar::chunk {
-                background-color: #00A8FF;
+                background-color: #AAAAAA;
                 border-radius: 7px;
             }
         """)
