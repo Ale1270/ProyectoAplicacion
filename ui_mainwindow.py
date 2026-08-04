@@ -125,30 +125,38 @@ class VentanaPrincipal(QMainWindow):
         self._actualizar_texto_boton(self.tabs.currentIndex())
         self._asignar_tooltips_pestanas()
 
-    # ==============================
-    # PANEL IZQUIERDO
-    # ==============================
+        # ==============================
+        # PANEL IZQUIERDO
+        # ==============================
     def _crear_panel_izquierdo(self):
-        layout = QVBoxLayout()
+            layout = QVBoxLayout()
 
-        titulo = QLabel("Conversor CUK")
-        titulo.setAlignment(Qt.AlignCenter)
-        titulo.setFont(QFont(self.FUENTE, 22, QFont.Bold))
-        titulo.setStyleSheet(f"background-color: {self.COLOR_PANEL}; padding: 10px; border-radius: 8px;")
-        titulo.setMaximumHeight(70)
+            titulo = QLabel("Conversor CUK")
+            titulo.setAlignment(Qt.AlignCenter)
+            titulo.setFont(QFont(self.FUENTE, 22, QFont.Bold))
+            titulo.setStyleSheet(f"background-color: {self.COLOR_PANEL}; padding: 10px; border-radius: 8px;")
+            titulo.setMaximumHeight(70)
 
-        self.imagen = QLabel()
-        self.imagen.setAlignment(Qt.AlignCenter)
-        self.imagen.setStyleSheet(f"background-color: {self.COLOR_PANEL}; border-radius: 8px; padding: 5px;")
-        self.pixmap_original = QPixmap(resource_path("recursos/Convertidor.png"))
+            self.imagen = QLabel()
+            self.imagen.setAlignment(Qt.AlignCenter)
+            self.imagen.setStyleSheet(f"background-color: {self.COLOR_PANEL}; border-radius: 8px; padding: 5px;")
+            self.pixmap_original = QPixmap(resource_path("recursos/Convertidor.png"))
 
-        self.tabs = self._crear_tabs()
+            # -------------------------------------------------------------
+            # ESPACIO RESERVADO PARA LA VENTANA DE CARGA
+            # -------------------------------------------------------------
+            self.espacio_carga = QWidget()
+            self.espacio_carga.setFixedHeight(25)  # Reserva de espacio fija
 
-        layout.addWidget(titulo)
-        layout.addWidget(self.imagen)
-        layout.addWidget(self.tabs)
+            self.tabs = self._crear_tabs()
 
-        return layout
+            # Añadimos al layout en el orden deseado:
+            layout.addWidget(titulo)
+            layout.addWidget(self.imagen)
+            layout.addWidget(self.espacio_carga)  # <--- Espacio exclusivo reservado
+            layout.addWidget(self.tabs)
+
+            return layout
 
     # ==============================
     # PESTAÑAS

@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QProgressBar
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QPoint
 
 
 class HiloSimulacion(QThread):
@@ -31,27 +31,21 @@ class HiloSimulacion(QThread):
 
 class VentanaCarga(QDialog):
     """
-    Barra de progreso minimalista centrada sobre la app.
-    Permite cambiar de programa en la PC libremente sin flotar sobre otras apps.
+    Ventana de carga emergente que se posiciona de forma fija
+    sobre el espacio reservado de la ventana principal.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, widget_referencia=None):
         super().__init__(parent)
 
-        # 1. Mantenemos sin marcos y fondo transparente,
-        # PERO quitamos Qt.WindowStaysOnTopHint para que no tape otros programas del PC
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
-        self.setFixedSize(450, 10)
         self._inicializar_ui()
 
-        # 2. Centrar la barra exactamente en medio de la ventana principal
-        if parent:
-            geo_parent = parent.geometry()
-            x = geo_parent.x() + ((geo_parent.width() - self.width()) // 2) - 25
-            y = geo_parent.y() + ((geo_parent.height() - self.height()) // 2) + 35
-            self.move(x, y)
+        # Si nos pasan el widget reservado, nos superponemos exactamente sobre él
+        if widget_referencia:
+            self.posicionar_sobre(widget_referencia)
 
     def _inicializar_ui(self):
         layout = QVBoxLayout(self)
@@ -62,20 +56,29 @@ class VentanaCarga(QDialog):
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(False)
 
-        # Estilos adaptados al tema oscuro de la aplicación principal
         self.progress_bar.setStyleSheet("""
             QProgressBar {
                 background-color: #2E2E2E;
                 border: 1px solid #555555;
-                border-radius: 8px;
+                border-radius: 6px;
             }
             QProgressBar::chunk {
                 background-color: #AAAAAA;
-                border-radius: 7px;
+                border-radius: 5px;
             }
         """)
 
         layout.addWidget(self.progress_bar)
+
+    def posicionar_sobre(self, widget_destino):
+        """Calcula las coordenadas globales del espacio reservado y se posiciona encima."""
+        pos_global = widget_destino.mapToGlobal(QPoint(0, 0))
+        self.setGeometry(
+            pos_global.x(),
+            pos_global.y(),
+            widget_destino.width(),
+            widget_destino.height()
+        )
 
     def actualizar_progreso(self, valor):
         self.progress_bar.setValue(valor)

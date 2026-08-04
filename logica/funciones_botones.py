@@ -8,7 +8,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 try:
     from widgets.ventana_graficas import VentanaGraficas
     from widgets.ventana_carga import VentanaCarga, HiloSimulacion
-    # IMPORTAMOS TODAS LAS FUNCIONES MATEMÁTICAS DESDE CALCULOS_CUK
     from logica.calculos_cuk import calcular_diseno_cuk, simular_sistema_cuk, calcular_caracteristicas_estado_estable
 except ImportError:
     from ventana_graficas import VentanaGraficas
@@ -146,8 +145,12 @@ def ejecutar_accion(ventana, tabs):
                 params["C2"], params["R"], D_calculado, f_sw, t_sim_segundos
             )
 
-            # 5. CREAR VENTANA DE CARGA E HILO
-            ventana.ventana_carga = VentanaCarga(ventana)
+            # 5. CREAR VENTANA DE CARGA SOBRE EL ESPACIO RESERVADO
+            ventana.ventana_carga = VentanaCarga(
+                parent=ventana,
+                widget_referencia=ventana.espacio_carga
+            )
+
             ventana.hilo_sim = HiloSimulacion(
                 simular_sistema_cuk,
                 calcular_caracteristicas_estado_estable,
