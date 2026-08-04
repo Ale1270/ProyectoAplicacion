@@ -49,8 +49,8 @@ class VentanaCarga(QDialog):
         # 2. Centrar la barra exactamente en medio de la ventana principal
         if parent:
             geo_parent = parent.geometry()
-            x = geo_parent.x() + (geo_parent.width() - self.width()) // 2
-            y = geo_parent.y() + (geo_parent.height() - self.height()) // 2
+            x = geo_parent.x() + ((geo_parent.width() - self.width()) // 2) - 25
+            y = geo_parent.y() + ((geo_parent.height() - self.height()) // 2) + 35
             self.move(x, y)
 
     def _inicializar_ui(self):
