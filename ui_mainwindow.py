@@ -80,7 +80,7 @@ class VentanaPrincipal(QMainWindow):
     # CONFIGURACIÓN VISUAL VENTANA
     # ==============================
     def _configurar_apariencia(self):
-        self.setWindowTitle("Convertidor CUK")
+        self.setWindowTitle("CLAB")
         self.resize(*self.size)
 
         self.setStyleSheet(f"background-color: {self.COLOR_FONDO}; color: white;")
@@ -101,7 +101,7 @@ class VentanaPrincipal(QMainWindow):
 
         self.setWindowOpacity(0.98)
         self.setMaximumSize(900, 700)
-        self.setMinimumSize(800, 580)
+        self.setMinimumSize(800, 620)
         self.setWindowIcon(QIcon(resource_path("recursos/logo.png")))
         self.setFont(QFont(self.FUENTE, 10))
         self.setWindowFlags(Qt.Window | Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint)
@@ -131,7 +131,7 @@ class VentanaPrincipal(QMainWindow):
     def _crear_panel_izquierdo(self):
             layout = QVBoxLayout()
 
-            titulo = QLabel("Conversor CUK")
+            titulo = QLabel("CLAB")
             titulo.setAlignment(Qt.AlignCenter)
             titulo.setFont(QFont(self.FUENTE, 22, QFont.Bold))
             titulo.setStyleSheet(f"background-color: {self.COLOR_PANEL}; padding: 10px; border-radius: 8px;")

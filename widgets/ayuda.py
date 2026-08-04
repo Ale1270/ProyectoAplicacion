@@ -14,7 +14,7 @@ class VentanaAyuda(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Guía de Uso y Ayuda - Convertidor Ćuk")
+        self.setWindowTitle("Guía de Uso y Ayuda - CLAB")
         self.setFixedSize(620, 560)
 
         # Ventana sin marco del sistema operativo para mantener el mismo diseño que Acerca de
@@ -162,7 +162,7 @@ class VentanaAyuda(QDialog):
         layout_tours.addLayout(grid)
         layout_tours.addSpacing(6)
 
-        btn_completo = QPushButton("Iniciar Tour Completo (Todos los pasos)")
+        btn_completo = QPushButton("Iniciar demostración completa (Todos los pasos)")
         btn_completo.setCursor(Qt.PointingHandCursor)
         btn_completo.setStyleSheet("""
             QPushButton {

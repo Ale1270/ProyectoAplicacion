@@ -154,7 +154,7 @@ class VentanaAcercaDe(QDialog):
         layout.setSpacing(25)
 
         # Encabezado principal
-        lbl_titulo = QLabel("Ćuk Converter Designer & Simulator")
+        lbl_titulo = QLabel("CLAB - Diseño y simulacion de covertidor CUK")
         lbl_titulo.setStyleSheet("font-size: 17px; font-weight: bold; color: #FFFFFF;")
 
         lbl_version = QLabel("Versión 1.2.0 | 2026")
