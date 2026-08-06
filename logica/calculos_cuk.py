@@ -165,11 +165,10 @@ def simular_sistema_cuk(Vin, L1, C1, L2, C2, R, D, f_sw, t_simulacion, callback_
 
     return t, iL1, vC1, iL2, Vo
 
-def calcular_caracteristicas_estado_estable(Vin, R, D, t, iL1, iL2, Vo, f_sw, V_diodo=0.4, R_ds_on=0.05, R_L=0.1):
+def calcular_caracteristicas_estado_estable(Vin, R, D, t, iL1, iL2, Vo, f_sw):
     """
     Analiza las curvas generadas por la simulación para determinar
     potencias reales, eficiencia y tiempo de estabilización.
-    Corrige las fórmulas de corriente combinada (iL1 + iL2) para la topología Ćuk.
     """
     try:
         n_total = len(t)
@@ -193,48 +192,28 @@ def calcular_caracteristicas_estado_estable(Vin, R, D, t, iL1, iL2, Vo, f_sw, V_
         iL2_steady_arr = iL2[idx_estable:]
 
         # -------------------------------------------------------
-        # Cálculo de Potencias y Pérdidas (Fórmulas Ćuk)
+        # Cálculo de Potencias (Nuevo enfoque basado en componentes)
         # -------------------------------------------------------
-        # Potencia de entrada proveniente de la fuente
+        # Potencia de entrada: Voltaje de fuente (Vin) por la corriente media en L1
         Pin = Vin * np.mean(iL1_steady_arr)
 
         if Pin > 0:
-            # Corrientes promedio y RMS de las bobinas
-            I_L1_avg = np.mean(iL1_steady_arr)
-            I_L2_avg = np.mean(np.abs(iL2_steady_arr))
+            # Potencia de salida: Voltaje en C2 (Vo) por la corriente en L2.
+            # Se usan valores absolutos debido a la inversión de polaridad del Ćuk.
+            # Se promedia el producto instantáneo de las formas de onda.
+            Pout = np.mean(np.abs(Vo_steady_arr) * np.abs(iL2_steady_arr))
 
-            I_L1_rms = np.sqrt(np.mean(iL1_steady_arr ** 2))
-            I_L2_rms = np.sqrt(np.mean(iL2_steady_arr ** 2))
-
-            # 1. Pérdidas en MOSFET: conduce (iL1 + iL2) durante tiempo D
-            I_sw_rms = (I_L1_rms + I_L2_rms) * np.sqrt(D)
-            P_perdida_mosfet = (I_sw_rms ** 2) * R_ds_on
-
-            # 2. Pérdidas en Diodo: conduce (iL1 + iL2) durante tiempo (1 - D)
-            I_diodo_avg = (I_L1_avg + I_L2_avg) * (1 - D)
-            P_perdida_diodo = I_diodo_avg * V_diodo
-
-            # 3. Pérdidas en Bobinas (ESR/DCR)
-            P_perdida_bobinas = (I_L1_rms ** 2) * R_L + (I_L2_rms ** 2) * R_L
-
-            # Potencia total de pérdidas
-            P_perdidas_totales = P_perdida_mosfet + P_perdida_diodo + P_perdida_bobinas
-
-            # Potencia real de salida y Eficiencia
-            Pout_ideal = np.mean((Vo_steady_arr ** 2) / R)
-            Pout_real = max(Pout_ideal - P_perdidas_totales, 0.0)
-
-            eficiencia = (Pout_real / Pin) * 100.0
-            # Limitar eficiencia a rango físicamente válido
+            # Cálculo directo de la eficiencia
+            eficiencia = (Pout / Pin) * 100.0
+            # Limitar eficiencia a rango físicamente válido (0% a 100%)
             eficiencia = min(max(eficiencia, 0.0), 100.0)
-            Pout_mostrar = Pout_real
         else:
             eficiencia = 0.0
-            Pout_mostrar = 0.0
+            Pout = 0.0
             Pin = 0.0
 
         # -------------------------------------------------------
-        # Tiempo de estabilización - Enfoque de Envolvente (0.5%)
+        # Tiempo de estabilización - Enfoque de Envolvente (0.2%)
         # -------------------------------------------------------
         Vo_mean = np.mean(Vo_steady_arr)
 
@@ -271,7 +250,7 @@ def calcular_caracteristicas_estado_estable(Vin, R, D, t, iL1, iL2, Vo, f_sw, V_
 
         return {
             "Pin": Pin,
-            "Pout": Pout_mostrar,
+            "Pout": Pout,
             "Eficiencia": eficiencia,
             "Tiempo": t_estable_str
         }
